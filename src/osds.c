@@ -270,6 +270,48 @@ static void RunOsd_PnJ(GOBJ *ft, GOBJ *ft_sub) {
     }
 }
 
+enum PopoSquallHammerStates {
+    ASID_POPO_SPECIALS1 = 343,
+    ASID_POPO_SPECIALS2 = 344,
+    ASID_POPO_SPECIALAIRS1 = 345,
+    ASID_POPO_SPECIALAIRS2 = 346,
+};
+
+static bool IsSquallHammer(int state_id) {
+    return state_id >= ASID_POPO_SPECIALS1 && state_id <= ASID_POPO_SPECIALAIRS2;
+}
+
+static void RunOsd_SquallHammer(GOBJ *ft) {
+    static int prev_state[6] = {};
+    static float start_height[6] = {};
+    static float peak_height[6] = {};
+
+    if (!ft) return;
+    const FighterData *ft_data = ft->userdata;
+    if (ft_data->kind != FTKIND_POPO) return;
+
+    int ply = ft_data->ply;
+    int cur_state = ft_data->state_id;
+    bool is_squall = IsSquallHammer(cur_state);
+    bool was_squall = IsSquallHammer(prev_state[ply]);
+
+    if (is_squall && !was_squall) {
+        start_height[ply] = ft_data->phys.pos.Y;
+        peak_height[ply] = 0.0f;
+    }
+
+    if (is_squall) {
+        float height_gained = ft_data->phys.pos.Y - start_height[ply];
+        if (height_gained > peak_height[ply])
+            peak_height[ply] = height_gained;
+    } else if (was_squall) {
+        Message_Display(OSD_FighterSpecificTech, ply, MSGCOLOR_WHITE,
+                        "Squall Hammer\nMax Height: %.2f", peak_height[ply]);
+    }
+
+    prev_state[ply] = cur_state;
+}
+
 void OSD_Think(GOBJ *event) {
     u32 osd_enabled = stc_memcard->TM_OSDEnabled;
 
@@ -295,6 +337,7 @@ void OSD_Think(GOBJ *event) {
                 RunOsd_Handoff(ft_sub, ft, enm_ft, &handoff_states[ply][1]);
             }
             RunOsd_PnJ(ft, ft_sub);
+            RunOsd_SquallHammer(ft);
             // ICE CLIMBERS OSDS END
         }
     }
